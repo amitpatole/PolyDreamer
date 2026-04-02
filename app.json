@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "PolyDreamer",
+    "slug": "polydreamer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#6C63FF"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.polydreamer.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "PolyDreamer needs access to your photo library to save generated images.",
+        "NSPhotoLibraryAddUsageDescription": "PolyDreamer needs permission to save generated images to your photo library."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#6C63FF"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.polydreamer.app",
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow PolyDreamer to access your photos.",
+          "savePhotosPermission": "Allow PolyDreamer to save photos.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ]
+    ]
+  }
+}
