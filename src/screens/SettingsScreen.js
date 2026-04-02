@@ -84,7 +84,7 @@ export default function SettingsScreen() {
           {savedApiKey && (
             <View style={[styles.keyBadge, { backgroundColor: c.inputBg }]}>
               <Text style={[styles.keyBadgeText, { color: c.textSecondary }]}>
-                {showApiKey ? savedApiKey : `${savedApiKey.substring(0, 8)}${'•'.repeat(12)}`}
+                {showApiKey ? savedApiKey : '••••••••••••••••••••'}
               </Text>
               <TouchableOpacity onPress={() => setShowApiKey((v) => !v)}>
                 <Text style={{ color: c.primary, fontWeight: '600', fontSize: 12 }}>

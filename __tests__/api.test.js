@@ -7,6 +7,13 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   removeItem: jest.fn(() => Promise.resolve()),
 }));
 
+// Mock expo-crypto
+jest.mock('expo-crypto', () => ({
+  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+  digestStringAsync: jest.fn((algo, input) => Promise.resolve(`hashed:${input}`)),
+  getRandomBytesAsync: jest.fn((size) => Promise.resolve(new Uint8Array(size))),
+}));
+
 describe('API Service', () => {
   describe('buildImageUrl', () => {
     it('builds a valid Pollinations image URL with default options', () => {

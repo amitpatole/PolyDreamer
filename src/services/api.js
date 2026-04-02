@@ -45,6 +45,14 @@ export function buildImageUrl(prompt, opts = {}) {
  */
 export async function generateImage(prompt, opts = {}) {
   const apiKey = await AsyncStorage.getItem(API_KEY_STORAGE);
+  const {
+    model = 'flux',
+    width = 1024,
+    height = 1024,
+    nologo = true,
+    enhance = false,
+    seed,
+  } = opts;
 
   if (apiKey) {
     // Use API endpoint with key
@@ -55,12 +63,14 @@ export async function generateImage(prompt, opts = {}) {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: opts.model || 'flux',
+        model,
         prompt,
-        width: opts.width || 1024,
-        height: opts.height || 1024,
+        width,
+        height,
+        nologo,
+        enhance,
+        ...(seed !== undefined && { seed }),
         n: 1,
-        nologo: true,
       }),
     });
 
@@ -76,7 +86,7 @@ export async function generateImage(prompt, opts = {}) {
   }
 
   // Free tier: direct URL
-  const url = buildImageUrl(prompt, opts);
+  const url = buildImageUrl(prompt, { model, width, height, nologo, enhance, seed });
   return { url, type: 'image' };
 }
 
