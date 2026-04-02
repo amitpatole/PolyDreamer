@@ -1,4 +1,12 @@
-import { buildImageUrl, generateImage } from '../src/services/api';
+import {
+  buildImageUrl,
+  generateImage,
+  saveApiKey,
+  getApiKey,
+  saveToGallery,
+  loadGallery,
+  deleteFromGallery,
+} from '../src/services/api';
 
 // Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -54,6 +62,148 @@ describe('API Service', () => {
       expect(result).toHaveProperty('url');
       expect(result).toHaveProperty('type', 'image');
       expect(result.url).toContain('image.pollinations.ai');
+    });
+  });
+
+  describe('generateImage (premium tier)', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('uses the POST API endpoint with a Bearer token when an API key is present', async () => {
+      const AsyncStorage = require('@react-native-async-storage/async-storage');
+      AsyncStorage.getItem.mockResolvedValueOnce('my-secret-key');
+
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: [{ url: 'https://api.pollinations.ai/img.jpg' }] }),
+      });
+
+      const result = await generateImage('a mountain', { model: 'flux', width: 1024, height: 1024 });
+
+      expect(result.url).toBe('https://api.pollinations.ai/img.jpg');
+      expect(result.type).toBe('image');
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://api.pollinations.ai/v1/images/generations',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({ Authorization: 'Bearer my-secret-key' }),
+        })
+      );
+    });
+
+    it('throws an error when the API response is not ok', async () => {
+      const AsyncStorage = require('@react-native-async-storage/async-storage');
+      AsyncStorage.getItem.mockResolvedValueOnce('my-secret-key');
+
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        text: async () => 'Unauthorized',
+      });
+
+      await expect(generateImage('a cat', {})).rejects.toThrow('API error (401): Unauthorized');
+    });
+
+    it('throws an error when the API response contains no image URL', async () => {
+      const AsyncStorage = require('@react-native-async-storage/async-storage');
+      AsyncStorage.getItem.mockResolvedValueOnce('my-secret-key');
+
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: [] }),
+      });
+
+      await expect(generateImage('a cat', {})).rejects.toThrow('No image URL in response');
+    });
+  });
+
+  describe('API key management', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('saves a trimmed API key to storage', async () => {
+      const AsyncStorage = require('@react-native-async-storage/async-storage');
+      await saveApiKey('  my-api-key  ');
+      expect(AsyncStorage.setItem).toHaveBeenCalledWith('@polydreamer_api_key', 'my-api-key');
+    });
+
+    it('removes the API key from storage when a falsy value is passed', async () => {
+      const AsyncStorage = require('@react-native-async-storage/async-storage');
+      await saveApiKey(null);
+      expect(AsyncStorage.removeItem).toHaveBeenCalledWith('@polydreamer_api_key');
+    });
+
+    it('retrieves the stored API key', async () => {
+      const AsyncStorage = require('@react-native-async-storage/async-storage');
+      AsyncStorage.getItem.mockResolvedValueOnce('stored-api-key');
+      const key = await getApiKey();
+      expect(key).toBe('stored-api-key');
+      expect(AsyncStorage.getItem).toHaveBeenCalledWith('@polydreamer_api_key');
+    });
+  });
+
+  describe('Gallery persistence', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('saves a new item to an empty gallery', async () => {
+      const AsyncStorage = require('@react-native-async-storage/async-storage');
+      AsyncStorage.getItem.mockResolvedValueOnce(null);
+
+      const item = { id: '1', url: 'https://example.com/img.jpg', prompt: 'test', model: 'flux', width: 1024, height: 1024, createdAt: '2024-01-01T00:00:00.000Z', type: 'image' };
+      await saveToGallery(item);
+
+      expect(AsyncStorage.setItem).toHaveBeenCalledWith('@polydreamer_gallery', JSON.stringify([item]));
+    });
+
+    it('prepends new items to an existing gallery', async () => {
+      const AsyncStorage = require('@react-native-async-storage/async-storage');
+      const existing = [{ id: '0', url: 'https://example.com/old.jpg' }];
+      AsyncStorage.getItem.mockResolvedValueOnce(JSON.stringify(existing));
+
+      const newItem = { id: '1', url: 'https://example.com/new.jpg' };
+      await saveToGallery(newItem);
+
+      expect(AsyncStorage.setItem).toHaveBeenCalledWith(
+        '@polydreamer_gallery',
+        JSON.stringify([newItem, ...existing])
+      );
+    });
+
+    it('loads gallery items from storage', async () => {
+      const AsyncStorage = require('@react-native-async-storage/async-storage');
+      const gallery = [{ id: '1', url: 'https://example.com/img.jpg' }];
+      AsyncStorage.getItem.mockResolvedValueOnce(JSON.stringify(gallery));
+
+      const result = await loadGallery();
+      expect(result).toEqual(gallery);
+    });
+
+    it('returns an empty array when gallery storage is empty', async () => {
+      const AsyncStorage = require('@react-native-async-storage/async-storage');
+      AsyncStorage.getItem.mockResolvedValueOnce(null);
+
+      const result = await loadGallery();
+      expect(result).toEqual([]);
+    });
+
+    it('deletes an item from the gallery by id', async () => {
+      const AsyncStorage = require('@react-native-async-storage/async-storage');
+      const gallery = [
+        { id: '1', url: 'https://example.com/img1.jpg' },
+        { id: '2', url: 'https://example.com/img2.jpg' },
+      ];
+      AsyncStorage.getItem.mockResolvedValueOnce(JSON.stringify(gallery));
+
+      await deleteFromGallery('1');
+
+      expect(AsyncStorage.setItem).toHaveBeenCalledWith(
+        '@polydreamer_gallery',
+        JSON.stringify([{ id: '2', url: 'https://example.com/img2.jpg' }])
+      );
     });
   });
 });
