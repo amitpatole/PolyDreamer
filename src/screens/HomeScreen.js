@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Crypto from 'expo-crypto';
 import { useTheme } from '../context/ThemeContext';
 import { generateImage, saveToGallery } from '../services/api';
 
@@ -56,12 +57,15 @@ export default function HomeScreen() {
     try {
       const ratio = ASPECT_RATIOS[selectedRatio];
       const model = MODELS[selectedModel].value;
+      // Use cryptographically secure random seed
+      const randomBytes = await Crypto.getRandomBytesAsync(4);
+      const seed = new DataView(randomBytes.buffer).getUint32(0);
       const result = await generateImage(prompt.trim(), {
         width: ratio.width,
         height: ratio.height,
         model,
         enhance,
-        seed: Math.floor(Math.random() * 1000000),
+        seed,
       });
       setGeneratedUrl(result.url);
       Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();

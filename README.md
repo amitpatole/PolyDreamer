@@ -2,6 +2,8 @@
 
 **PolyDreamer** is a cross-platform mobile app (Android & iOS) built with React Native (Expo) that lets you generate stunning images from text prompts using the [Pollinations AI](https://pollinations.ai) API. Sign up, log in, craft prompts, and watch your imagination come to life. 🎨
 
+> **Note:** The current version supports AI **image generation**. Video generation is planned for a future release.
+
 ---
 
 ## Features

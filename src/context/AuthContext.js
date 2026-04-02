@@ -7,8 +7,22 @@ const AuthContext = createContext(null);
 const STORAGE_KEY_USER = '@polydreamer_user';
 const STORAGE_KEY_TOKEN = '@polydreamer_token';
 
-async function hashPassword(password) {
-  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, password);
+async function generateId() {
+  const randomBytes = await Crypto.getRandomBytesAsync(16);
+  return Array.from(randomBytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function generateSalt() {
+  const randomBytes = await Crypto.getRandomBytesAsync(16);
+  return Array.from(randomBytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function hashPassword(password, salt) {
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `${salt}:${password}`);
 }
 
 async function generateToken(email) {
@@ -47,8 +61,6 @@ export function AuthProvider({ children }) {
   }
 
   async function signUp(name, email, password) {
-    // Hash password before storing
-    const hashedPassword = await hashPassword(password);
     const usersRaw = await AsyncStorage.getItem('@polydreamer_users');
     const users = usersRaw ? JSON.parse(usersRaw) : [];
 
@@ -56,7 +68,12 @@ export function AuthProvider({ children }) {
       throw new Error('An account with this email already exists.');
     }
 
-    const newUser = { id: Date.now().toString(), name, email, hashedPassword };
+    // Generate a unique salt per user and hash the password with it
+    const salt = await generateSalt();
+    const hashedPassword = await hashPassword(password, salt);
+    const id = await generateId();
+
+    const newUser = { id, name, email, hashedPassword, salt };
     users.push(newUser);
     await AsyncStorage.setItem('@polydreamer_users', JSON.stringify(users));
 
@@ -71,17 +88,22 @@ export function AuthProvider({ children }) {
   }
 
   async function signIn(email, password) {
-    const hashedPassword = await hashPassword(password);
     const usersRaw = await AsyncStorage.getItem('@polydreamer_users');
     const users = usersRaw ? JSON.parse(usersRaw) : [];
 
-    const found = users.find((u) => u.email === email && u.hashedPassword === hashedPassword);
-    if (!found) {
+    const userRecord = users.find((u) => u.email === email);
+    if (!userRecord) {
+      throw new Error('Invalid email or password.');
+    }
+
+    // Re-derive the hash using the stored salt and compare
+    const hashedPassword = await hashPassword(password, userRecord.salt);
+    if (hashedPassword !== userRecord.hashedPassword) {
       throw new Error('Invalid email or password.');
     }
 
     const token = await generateToken(email);
-    const sessionUser = { id: found.id, name: found.name, email: found.email };
+    const sessionUser = { id: userRecord.id, name: userRecord.name, email: userRecord.email };
 
     await AsyncStorage.setItem(STORAGE_KEY_USER, JSON.stringify(sessionUser));
     await AsyncStorage.setItem(STORAGE_KEY_TOKEN, token);

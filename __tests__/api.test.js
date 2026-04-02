@@ -70,6 +70,17 @@ describe('AuthContext logic', () => {
     expect('abc'.length >= 6).toBe(false);
     expect('abcdefg'.length >= 6).toBe(true);
   });
+
+  it('produces different hashes for the same password with different salts', async () => {
+    const { digestStringAsync, CryptoDigestAlgorithm } = require('expo-crypto');
+    const password = 'testpassword';
+    const salt1 = 'salt1';
+    const salt2 = 'salt2';
+    const hash1 = await digestStringAsync(CryptoDigestAlgorithm.SHA256, `${salt1}:${password}`);
+    const hash2 = await digestStringAsync(CryptoDigestAlgorithm.SHA256, `${salt2}:${password}`);
+    // With our mock, these will differ due to different input strings
+    expect(hash1).not.toBe(hash2);
+  });
 });
 
 describe('ThemeContext', () => {
