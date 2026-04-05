@@ -1,39 +1,19 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Crypto from 'expo-crypto';
 
 const AuthContext = createContext(null);
 
-const STORAGE_KEY_USER = '@polydreamer_user';
-const STORAGE_KEY_TOKEN = '@polydreamer_token';
+const TOKEN_KEY = '@polydreamer_token';
+const API_BASE = '/api/auth';
 
-async function generateId() {
-  const randomBytes = await Crypto.getRandomBytesAsync(16);
-  return Array.from(randomBytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-async function generateSalt() {
-  const randomBytes = await Crypto.getRandomBytesAsync(16);
-  return Array.from(randomBytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-async function hashPassword(password, salt) {
-  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `${salt}:${password}`);
-}
-
-async function generateToken(email) {
-  const randomBytes = await Crypto.getRandomBytesAsync(32);
-  const randomHex = Array.from(randomBytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-  return Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    `${email}:${randomHex}:${Date.now()}`
-  );
+async function apiFetch(path, options = {}) {
+  const res = await fetch(API_BASE + path, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
 }
 
 export function AuthProvider({ children }) {
@@ -47,74 +27,53 @@ export function AuthProvider({ children }) {
 
   async function restoreSession() {
     try {
-      const storedUser = await AsyncStorage.getItem(STORAGE_KEY_USER);
-      const storedToken = await AsyncStorage.getItem(STORAGE_KEY_TOKEN);
-      if (storedUser && storedToken) {
-        setUser(JSON.parse(storedUser));
+      const storedToken = await AsyncStorage.getItem(TOKEN_KEY);
+      if (storedToken) {
+        const data = await apiFetch('/me', {
+          headers: { Authorization: `Bearer ${storedToken}` },
+        });
+        setUser(data.user);
         setToken(storedToken);
       }
-    } catch (e) {
-      // ignore
+    } catch {
+      await AsyncStorage.removeItem(TOKEN_KEY);
     } finally {
       setLoading(false);
     }
   }
 
   async function signUp(name, email, password) {
-    const usersRaw = await AsyncStorage.getItem('@polydreamer_users');
-    const users = usersRaw ? JSON.parse(usersRaw) : [];
-
-    if (users.find((u) => u.email === email)) {
-      throw new Error('An account with this email already exists.');
-    }
-
-    // Generate a unique salt per user and hash the password with it
-    const salt = await generateSalt();
-    const hashedPassword = await hashPassword(password, salt);
-    const id = await generateId();
-
-    const newUser = { id, name, email, hashedPassword, salt };
-    users.push(newUser);
-    await AsyncStorage.setItem('@polydreamer_users', JSON.stringify(users));
-
-    const token = await generateToken(email);
-    const sessionUser = { id: newUser.id, name, email };
-
-    await AsyncStorage.setItem(STORAGE_KEY_USER, JSON.stringify(sessionUser));
-    await AsyncStorage.setItem(STORAGE_KEY_TOKEN, token);
-
-    setUser(sessionUser);
-    setToken(token);
+    const data = await apiFetch('/signup', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password }),
+    });
+    await AsyncStorage.setItem(TOKEN_KEY, data.token);
+    setToken(data.token);
+    setUser(data.user);
   }
 
   async function signIn(email, password) {
-    const usersRaw = await AsyncStorage.getItem('@polydreamer_users');
-    const users = usersRaw ? JSON.parse(usersRaw) : [];
-
-    const userRecord = users.find((u) => u.email === email);
-    if (!userRecord) {
-      throw new Error('Invalid email or password.');
-    }
-
-    // Re-derive the hash using the stored salt and compare
-    const hashedPassword = await hashPassword(password, userRecord.salt);
-    if (hashedPassword !== userRecord.hashedPassword) {
-      throw new Error('Invalid email or password.');
-    }
-
-    const token = await generateToken(email);
-    const sessionUser = { id: userRecord.id, name: userRecord.name, email: userRecord.email };
-
-    await AsyncStorage.setItem(STORAGE_KEY_USER, JSON.stringify(sessionUser));
-    await AsyncStorage.setItem(STORAGE_KEY_TOKEN, token);
-
-    setUser(sessionUser);
-    setToken(token);
+    const data = await apiFetch('/signin', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    await AsyncStorage.setItem(TOKEN_KEY, data.token);
+    setToken(data.token);
+    setUser(data.user);
   }
 
   async function signOut() {
-    await AsyncStorage.removeItem(STORAGE_KEY_USER);
-    await AsyncStorage.removeItem(STORAGE_KEY_TOKEN);
+    try {
+      if (token) {
+        await apiFetch('/signout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } catch {
+      // ignore — token may be expired
+    }
+    await AsyncStorage.removeItem(TOKEN_KEY);
     setUser(null);
     setToken(null);
   }
