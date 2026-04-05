@@ -1,12 +1,15 @@
 #!/bin/bash
 # Deploy PolyDreamer web app
-# Builds the Expo web app and reloads nginx
 set -e
 
-cd "."
+cd "$(dirname "$0")"
 
 echo "Building web app..."
 npx expo export --platform web
+
+echo "Fixing permissions for nginx..."
+chmod o+x /home/ubuntu
+chmod -R o+rX /home/ubuntu/PolyDreamer/dist
 
 echo "Reloading nginx..."
 sudo systemctl reload nginx
